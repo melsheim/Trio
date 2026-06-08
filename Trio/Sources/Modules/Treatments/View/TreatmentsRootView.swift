@@ -1,4 +1,3 @@
-import Charts
 import CoreData
 import LoopKitUI
 import SwiftUI
@@ -207,11 +206,6 @@ extension Treatments {
                 VStack {
                     List {
                         Section {
-                            ForecastChart(state: state)
-                                .padding(.vertical)
-                        }.listRowBackground(Color.chart)
-
-                        Section {
                             carbsTextField()
 
                             if state.useFPUconversion {
@@ -382,10 +376,15 @@ extension Treatments {
                                 Toggle("", isOn: $state.externalInsulin).toggleStyle(CheckboxToggleStyle())
                             }
                         }.listRowBackground(Color.chart)
-
-                        treatmentButton
                     }
                     .listSectionSpacing(sectionSpacing)
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        treatmentButton
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                            .padding(.bottom, 8)
+                            .background(appState.trioBackgroundColor(for: colorScheme))
+                    }
                 }
                 .blur(radius: state.isAwaitingDeterminationResult ? 5 : 0)
 
@@ -502,11 +501,16 @@ extension Treatments {
                 treatmentButtonBackground = Color(.systemGray)
             }
 
-            return Section {
+            return VStack(spacing: 6) {
+                if !bolusWarning.warningMessage.isEmpty {
+                    Text(bolusWarning.warningMessage)
+                        .font(.subheadline)
+                        .foregroundColor(bolusWarning.color)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+
                 if shouldDisplayBolusProgress {
                     bolusInProgressView
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                 } else {
                     Button {
                         if bolusWarning.shouldConfirm {
@@ -521,10 +525,10 @@ extension Treatments {
                         .font(.headline)
                         .foregroundStyle(Color.white)
                         .frame(maxWidth: .infinity, alignment: .center)
-                        .frame(height: 35)
+                        .frame(height: 52)
                     }
                     .disabled(disableTaskButton)
-                    .listRowBackground(treatmentButtonBackground)
+                    .background(treatmentButtonBackground)
                     .shadow(radius: 3)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .confirmationDialog(
@@ -541,15 +545,6 @@ extension Treatments {
                             state.invokeTreatmentsTask()
                         }
                     }
-                }
-            } header: {
-                if !bolusWarning.warningMessage.isEmpty {
-                    Text(bolusWarning.warningMessage)
-                        .textCase(nil)
-                        .font(.subheadline)
-                        .foregroundColor(bolusWarning.color)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, -22)
                 }
             }
         }
