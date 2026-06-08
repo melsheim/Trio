@@ -28,6 +28,8 @@ extension Treatments {
         private enum Config {
             static let dividerHeight: CGFloat = 2
             static let spacing: CGFloat = 3
+            static let actionButtonBottomPadding: CGFloat = 8
+            static let keyboardToolbarClearance: CGFloat = 58
         }
 
         @Environment(\.colorScheme) var colorScheme
@@ -382,7 +384,10 @@ extension Treatments {
                         treatmentButton
                             .padding(.horizontal)
                             .padding(.top, 8)
-                            .padding(.bottom, 8)
+                            .padding(
+                                .bottom,
+                                focusedField == nil ? Config.actionButtonBottomPadding : Config.keyboardToolbarClearance
+                            )
                             .background(appState.trioBackgroundColor(for: colorScheme))
                     }
                 }
