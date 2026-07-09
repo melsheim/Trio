@@ -93,6 +93,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           token: ${{ secrets.GH_PAT }}
+          ref: ${{ env.TARGET_BRANCH }}
 
       # This syncs any target branch to upstream branch of the same name
       - name: Sync upstream changes
