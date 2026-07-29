@@ -1,5 +1,5 @@
 name: 4. Build Trio
-run-name: Build Trio (feat/o5)
+run-name: Build Trio (${{ github.ref_name }})
 on:
   workflow_dispatch:
   schedule:
@@ -10,8 +10,8 @@ on:
 env:
   GH_PAT: ${{ secrets.GH_PAT }}
   UPSTREAM_REPO: nightscout/Trio
-  UPSTREAM_BRANCH: feat/o5 # branch on upstream repository to sync from
-  TARGET_BRANCH: feat/o5 # target branch on fork to be kept in sync and built
+  UPSTREAM_BRANCH: ${{ github.ref_name }} # branch on upstream repository to sync from
+  TARGET_BRANCH: ${{ github.ref_name }} # target branch on fork to be kept in sync and built
 
 jobs:
   # use a single runner for these sequential steps
