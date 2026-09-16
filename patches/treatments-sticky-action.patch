@@ -81,10 +81,10 @@ index 91b97f55c..36c3404f8 100644
 +                    .background(treatmentButtonBackground)
                      .shadow(radius: 3)
                      .clipShape(RoundedRectangle(cornerRadius: 8))
-                     .confirmationDialog(
+                     .glassActionSheet(
 @@ -542,15 +551,6 @@ extension Treatments {
                          }
-                     }
+                     )
                  }
 -            } header: {
 -                if !bolusWarning.warningMessage.isEmpty {
