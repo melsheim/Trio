@@ -82,8 +82,8 @@ index 91b97f55c..36c3404f8 100644
                      .shadow(radius: 3)
                      .clipShape(RoundedRectangle(cornerRadius: 8))
                      .glassActionSheet(
-@@ -542,15 +551,6 @@ extension Treatments {
-                         }
+@@ -550,15 +559,6 @@ extension Treatments {
+                         ]
                      )
                  }
 -            } header: {
