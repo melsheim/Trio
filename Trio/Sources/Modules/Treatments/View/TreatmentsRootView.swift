@@ -25,6 +25,7 @@ extension Treatments {
         @State private var pushed: Bool = false
         @State private var debounce: DispatchWorkItem?
         @State private var showFatProteinOrderBanner = false
+        @State private var showTreatmentOptions = false
 
         private enum Config {
             static let dividerHeight: CGFloat = 2
@@ -236,60 +237,61 @@ extension Treatments {
                                 }
                             }
 
-                            // Time
-                            HStack {
-                                // Semi-hacky workaround to make sure the List renders the horizontal divider properly between the `Time` and `Note` rows within the Section
+                            DisclosureGroup("Options", isExpanded: $showTreatmentOptions) {
+                                // Time defaults to Now; expand only when backdating is needed.
                                 HStack {
-                                    Text("")
-                                    Image(systemName: "clock").padding(.leading, -7)
-                                }
+                                    Image(systemName: "clock")
+                                    Spacer()
+                                    if !pushed {
+                                        Button {
+                                            pushed = true
+                                        } label: {
+                                            Text("Now")
+                                        }
+                                        .buttonStyle(.borderless)
+                                        .foregroundColor(.secondary)
+                                    } else {
+                                        Button { state.date = state.date.addingTimeInterval(-15.minutes.timeInterval) }
+                                        label: { Image(systemName: "minus.circle") }
+                                            .tint(.blue)
+                                            .buttonStyle(.borderless)
+                                            .accessibilityLabel(Text("15 minutes earlier"))
 
-                                Spacer()
-                                if !pushed {
-                                    Button {
-                                        pushed = true
-                                    } label: { Text("Now") }.buttonStyle(.borderless).foregroundColor(.secondary)
-                                        .padding(.trailing, 5)
-                                } else {
-                                    Button { state.date = state.date.addingTimeInterval(-15.minutes.timeInterval) }
-                                    label: { Image(systemName: "minus.circle") }.tint(.blue).buttonStyle(.borderless)
-                                        .accessibilityLabel(Text("15 minutes earlier"))
-
-                                    DatePicker(
-                                        "Time",
-                                        selection: $state.date,
-                                        displayedComponents: [.hourAndMinute]
-                                    ).controlSize(.mini)
+                                        DatePicker(
+                                            "Time",
+                                            selection: $state.date,
+                                            displayedComponents: [.hourAndMinute]
+                                        )
+                                        .controlSize(.mini)
                                         .labelsHidden()
                                         .onChange(of: state.date) { _, _ in
-                                            // Trigger simulation when date changes to update forecasts for backdated carbs
                                             Task {
-                                                // `updateForecasts()` does update the `simulatedDetermination` of type `Determination?` var on the main thread, so I can use this to pass its cob value into the bolus calc manager
                                                 await state.updateForecasts()
                                                 state.insulinCalculated = await state.calculateInsulin()
                                             }
                                         }
-                                    Button {
-                                        state.date = state.date.addingTimeInterval(15.minutes.timeInterval)
-                                    }
-                                    label: { Image(systemName: "plus.circle") }.tint(.blue).buttonStyle(.borderless)
-                                        .accessibilityLabel(Text("15 minutes later"))
-                                }
-                            }
 
-                            // Notes
-                            HStack {
-                                Image(systemName: "square.and.pencil")
-                                TextFieldWithToolBarString(
-                                    text: $state.note,
-                                    placeholder: String(localized: "Note..."),
-                                    maxLength: 25
-                                )
+                                        Button { state.date = state.date.addingTimeInterval(15.minutes.timeInterval) }
+                                        label: { Image(systemName: "plus.circle") }
+                                            .tint(.blue)
+                                            .buttonStyle(.borderless)
+                                            .accessibilityLabel(Text("15 minutes later"))
+                                    }
+                                }
+
+                                HStack {
+                                    Image(systemName: "square.and.pencil")
+                                    TextFieldWithToolBarString(
+                                        text: $state.note,
+                                        placeholder: String(localized: "Note..."),
+                                        maxLength: 25
+                                    )
+                                }
                             }
                         }.listRowBackground(Color.chart)
 
                         Section {
-                            if state.fattyMeals || state.sweetMeals {
+                            if showTreatmentOptions, state.fattyMeals || state.sweetMeals {
                                 HStack(spacing: 10) {
                                     if state.fattyMeals {
                                         Toggle(isOn: $state.useFattyMealCorrectionFactor) {
@@ -386,10 +388,12 @@ extension Treatments {
                                     }
                             }
 
-                            HStack {
-                                Text("External Insulin")
-                                Spacer()
-                                Toggle("", isOn: $state.externalInsulin).toggleStyle(CheckboxToggleStyle())
+                            if showTreatmentOptions {
+                                HStack {
+                                    Text("External Insulin")
+                                    Spacer()
+                                    Toggle("", isOn: $state.externalInsulin).toggleStyle(CheckboxToggleStyle())
+                                }
                             }
                         }.listRowBackground(Color.chart)
 
@@ -439,6 +443,14 @@ extension Treatments {
 
                     if PropertyPersistentFlags.shared.hasSeenFatProteinOrderChange != true {
                         showFatProteinOrderBanner = true
+                    }
+
+                    // Primary workflow: open Treatments ready for immediate carb entry.
+                    // Defer focus until the navigation transition has completed.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        if autofocus {
+                            focusedField = .carbs
+                        }
                     }
                 }
             }
