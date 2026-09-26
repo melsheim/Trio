@@ -1,4 +1,3 @@
-import Charts
 import CoreData
 import LoopKitUI
 import SwiftUI
@@ -207,11 +206,6 @@ extension Treatments {
             ZStack(alignment: .center) {
                 VStack {
                     List {
-                        Section {
-                            ForecastChart(state: state)
-                                .padding(.vertical)
-                        }.listRowBackground(Color.chart)
-
                         Section {
                             carbsTextField()
 
