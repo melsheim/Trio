@@ -25,9 +25,6 @@ extension Treatments {
         @State private var debounce: DispatchWorkItem?
         @State private var showFatProteinOrderBanner = false
         @State private var showTreatmentOptions = false
-        @State private var prototypeHoldProgress: CGFloat = 0
-        @State private var prototypeHoldStartedAt: Date?
-        @State private var showPrototypeCompletion = false
 
         private enum Config {
             static let dividerHeight: CGFloat = 2
@@ -397,7 +394,6 @@ extension Treatments {
                         treatmentButton
                     }
                     .listSectionSpacing(sectionSpacing)
-                    .padding(.top, 10)
                 }
                 .blur(radius: state.isAwaitingDeterminationResult ? 5 : 0)
 
@@ -512,88 +508,64 @@ extension Treatments {
         }
 
         var treatmentButton: some View {
-            let hasBolus = state.amount > 0
-            let hasCarbs = state.carbs > 0
-            let prototypeEnabled = hasBolus || hasCarbs
+            let shouldDisplayBolusProgress = bolusInProgressForEntry
 
-            return VStack(spacing: 8) {
-                if prototypeEnabled {
-                    Text(prototypeActionSummary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
+            var treatmentButtonBackground = Color(.systemBlue)
+            if limitExceeded {
+                treatmentButtonBackground = Color(.systemRed)
+            } else if disableTaskButton {
+                treatmentButtonBackground = Color(.systemGray)
+            }
 
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(prototypeEnabled ? Color(.systemBlue) : Color(.systemGray))
-
-                    GeometryReader { geometry in
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(Color.white.opacity(0.22))
-                            .frame(width: geometry.size.width * prototypeHoldProgress)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-
-                    Text(prototypeEnabled ? "Hold 3 sec to preview treatment" : "Enter carbs to continue")
+            return Section {
+                if shouldDisplayBolusProgress {
+                    bolusInProgressView
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                } else {
+                    Button {
+                        if bolusWarning.shouldConfirm {
+                            showConfirmDialogForBolusing = true
+                        } else {
+                            state.invokeTreatmentsTask()
+                        }
+                    } label: {
+                        HStack {
+                            taskButtonLabel
+                        }
                         .font(.headline)
                         .foregroundStyle(Color.white)
                         .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, 16)
-                }
-                .frame(height: 54)
-                .contentShape(Rectangle())
-                .onLongPressGesture(
-                    minimumDuration: 3,
-                    maximumDistance: 35,
-                    pressing: { pressing in
-                        guard prototypeEnabled else { return }
-                        if pressing {
-                            prototypeHoldStartedAt = Date()
-                            withAnimation(.linear(duration: 3)) {
-                                prototypeHoldProgress = 1
-                            }
-                        } else if !showPrototypeCompletion {
-                            prototypeHoldStartedAt = nil
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                prototypeHoldProgress = 0
-                            }
-                        }
-                    },
-                    perform: {
-                        // Prototype only: deliberately does NOT call invokeTreatmentsTask().
-                        prototypeHoldProgress = 1
-                        showPrototypeCompletion = true
+                        .frame(height: 35)
                     }
-                )
-                .disabled(!prototypeEnabled)
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
-            .padding(.bottom, 8)
-            .background(appState.trioBackgroundColor(for: colorScheme))
-            .alert("Prototype authorization reached", isPresented: $showPrototypeCompletion) {
-                Button("OK") {
-                    prototypeHoldProgress = 0
-                    prototypeHoldStartedAt = nil
+                    .disabled(disableTaskButton)
+                    .listRowBackground(treatmentButtonBackground)
+                    .shadow(radius: 3)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .glassActionSheet(
+                        Text(bolusWarning.warningMessage + " Bolus \(state.amount.description) U?"),
+                        isPresented: $showConfirmDialogForBolusing,
+                        actions: [
+                            GlassSheetAction(
+                                verbatim: bolusWarning.warningMessage
+                                    .isEmpty ? String(localized: "Enact Bolus") :
+                                    String(localized: "Ignore Warning and Enact Bolus"),
+                                role: bolusWarning.warningMessage.isEmpty ? nil : .destructive
+                            ) {
+                                state.invokeTreatmentsTask()
+                            }
+                        ]
+                    )
                 }
-            } message: {
-                Text(prototypeActionSummary + "\n\nNo treatment was enacted.")
-            }
-        }
-
-        private var prototypeActionSummary: String {
-            let carbs = mealFormatter.string(from: state.carbs as NSNumber) ?? state.carbs.description
-            let bolus = formatter.string(from: state.amount as NSNumber) ?? state.amount.description
-
-            if state.amount > 0, state.carbs > 0 {
-                return "Log \(carbs) g + preview \(bolus) U bolus"
-            } else if state.amount > 0 {
-                return "Preview \(bolus) U bolus"
-            } else if state.carbs > 0 {
-                return "Log \(carbs) g carbs"
-            } else {
-                return "No treatment selected"
+            } header: {
+                if !bolusWarning.warningMessage.isEmpty {
+                    Text(bolusWarning.warningMessage)
+                        .textCase(nil)
+                        .font(.subheadline)
+                        .foregroundColor(bolusWarning.color)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, -22)
+                }
             }
         }
 
