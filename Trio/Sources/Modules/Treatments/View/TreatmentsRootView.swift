@@ -27,6 +27,8 @@ extension Treatments {
         @State private var showTreatmentOptions = false
         @AppStorage("treatmentsAutoFillRecommendedBolus") private var autoFillRecommendedBolus = false
         @AppStorage("treatmentsRequireThreeSecondHold") private var requireThreeSecondHold = false
+        @State private var testHoldProgress: CGFloat = 0
+        @State private var showTestHoldComplete = false
 
         private enum Config {
             static let dividerHeight: CGFloat = 2
@@ -290,9 +292,8 @@ extension Treatments {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
 
-                                Toggle("Require 3-second hold", isOn: $requireThreeSecondHold)
-                                    .disabled(true)
-                                Text("Experimental — existing Trio treatment action remains active")
+                                Toggle("3-second hold test mode", isOn: $requireThreeSecondHold)
+                                Text("Test only — never enacts treatment")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -416,10 +417,14 @@ extension Treatments {
                             }
                         }.listRowBackground(Color.chart)
 
+                        if requireThreeSecondHold {
+                            testHoldButton
+                        }
+
                         treatmentButton
                     }
                     .listSectionSpacing(sectionSpacing)
-                    .padding(.top, 10)
+                    .padding(.top, 26)
                 }
                 .blur(radius: state.isAwaitingDeterminationResult ? 5 : 0)
 
@@ -531,6 +536,66 @@ extension Treatments {
             let shouldConfirm = state.confirmBolus && (isGlucoseVeryLow || isForecastVeryLow)
 
             return (shouldConfirm, warningMessage, warningColor)
+        }
+
+        private var testHoldSummary: String {
+            let carbs = mealFormatter.string(from: state.carbs as NSNumber) ?? state.carbs.description
+            let bolus = formatter.string(from: state.amount as NSNumber) ?? state.amount.description
+            return "Test only: \(carbs) g carbs • \(bolus) U bolus"
+        }
+
+        private var testHoldButton: some View {
+            VStack(spacing: 6) {
+                Text(testHoldSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemIndigo))
+
+                    GeometryReader { geometry in
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.white.opacity(0.24))
+                            .frame(width: geometry.size.width * testHoldProgress)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    Text("Hold 3 sec • Test only")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                }
+                .frame(height: 48)
+                .contentShape(Rectangle())
+                .onLongPressGesture(
+                    minimumDuration: 3,
+                    maximumDistance: 35,
+                    pressing: { pressing in
+                        if pressing {
+                            withAnimation(.linear(duration: 3)) {
+                                testHoldProgress = 1
+                            }
+                        } else if !showTestHoldComplete {
+                            withAnimation(.easeOut(duration: 0.15)) {
+                                testHoldProgress = 0
+                            }
+                        }
+                    },
+                    perform: {
+                        // Deliberately isolated from Trio treatment enactment.
+                        showTestHoldComplete = true
+                    }
+                )
+            }
+            .listRowBackground(Color.clear)
+            .alert("3-second hold completed", isPresented: $showTestHoldComplete) {
+                Button("OK") {
+                    testHoldProgress = 0
+                }
+            } message: {
+                Text(testHoldSummary + "\nNo treatment was enacted.")
+            }
         }
 
         var treatmentButton: some View {
