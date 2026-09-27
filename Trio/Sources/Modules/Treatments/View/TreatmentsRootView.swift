@@ -25,12 +25,6 @@ extension Treatments {
         @State private var debounce: DispatchWorkItem?
         @State private var showFatProteinOrderBanner = false
         @State private var showTreatmentOptions = false
-        @AppStorage("treatmentsAutoFillRecommendedBolus") private var autoFillRecommendedBolus = false
-        @AppStorage("treatmentsRequireThreeSecondHold") private var requireThreeSecondHold = false
-        @State private var testHoldProgress: CGFloat = 0
-        @State private var showTestHoldComplete = false
-        @State private var simulatedAutoBolus: Decimal = 0
-        @State private var simulatedAutoFillEnabled = false
 
         private enum Config {
             static let dividerHeight: CGFloat = 2
@@ -99,9 +93,6 @@ extension Treatments {
                 Task {
                     await state.updateForecasts()
                     state.insulinCalculated = await state.calculateInsulin()
-                    if simulatedAutoFillEnabled {
-                        simulatedAutoBolus = state.insulinCalculated
-                    }
                 }
             }
             if let debounce = debounce {
@@ -290,19 +281,6 @@ extension Treatments {
                                         maxLength: 25
                                     )
                                 }
-
-                                Toggle("Auto-fill preview", isOn: $simulatedAutoFillEnabled)
-                                Text("Test only — previews the recommendation without changing Trio's actual bolus")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-
-                                Toggle("3-second hold to select recommendation", isOn: $requireThreeSecondHold)
-                                Text("UI test — hold copies the displayed recommendation into Bolus; it never enacts treatment")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .onChange(of: simulatedAutoFillEnabled) { _, enabled in
-                                simulatedAutoBolus = enabled ? state.insulinCalculated : 0
                             }
                         }.listRowBackground(Color.chart)
 
@@ -339,24 +317,6 @@ extension Treatments {
                                             }
                                         }
                                     }
-                                }
-                            }
-
-                            if simulatedAutoFillEnabled {
-                                HStack {
-                                    HStack(spacing: 8) {
-                                        Text("Auto-fill preview")
-                                        Text("TEST")
-                                            .font(.caption2)
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 7)
-                                            .padding(.vertical, 3)
-                                            .background(Color.purple)
-                                            .clipShape(Capsule())
-                                    }
-                                    Spacer()
-                                    Text((formatter.string(from: simulatedAutoBolus as NSNumber) ?? "0") + " U")
-                                        .foregroundStyle(.purple)
                                 }
                             }
 
@@ -402,18 +362,7 @@ extension Treatments {
                             }
 
                             HStack {
-                                HStack(spacing: 8) {
-                                    Text("Bolus")
-                                    if autoFillRecommendedBolus, state.amount == state.insulinCalculated, state.amount > 0 {
-                                        Text("Auto")
-                                            .font(.caption2)
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 7)
-                                            .padding(.vertical, 3)
-                                            .background(Color.accentColor)
-                                            .clipShape(Capsule())
-                                    }
-                                }
+                                Text("Bolus")
                                 Spacer()
                                 TextFieldWithToolBar(
                                     text: $state.amount,
@@ -441,10 +390,6 @@ extension Treatments {
                                 }
                             }
                         }.listRowBackground(Color.chart)
-
-                        if requireThreeSecondHold {
-                            testHoldButton
-                        }
 
                         treatmentButton
                     }
@@ -563,68 +508,6 @@ extension Treatments {
             return (shouldConfirm, warningMessage, warningColor)
         }
 
-        private var testHoldSummary: String {
-            let carbs = mealFormatter.string(from: state.carbs as NSNumber) ?? state.carbs.description
-            let recommendation = formatter.string(from: state.insulinCalculated as NSNumber) ?? state.insulinCalculated.description
-            return "\(carbs) g carbs • select \(recommendation) U"
-        }
-
-        private var testHoldButton: some View {
-            VStack(spacing: 6) {
-                Text(testHoldSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.systemIndigo))
-
-                    GeometryReader { geometry in
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.white.opacity(0.24))
-                            .frame(width: geometry.size.width * testHoldProgress)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                    Text("Hold 3 sec to select dose")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                }
-                .frame(height: 48)
-                .contentShape(Rectangle())
-                .onLongPressGesture(
-                    minimumDuration: 3,
-                    maximumDistance: 35,
-                    pressing: { pressing in
-                        if pressing {
-                            withAnimation(.linear(duration: 3)) {
-                                testHoldProgress = 1
-                            }
-                        } else if !showTestHoldComplete {
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                testHoldProgress = 0
-                            }
-                        }
-                    },
-                    perform: {
-                        // UI validation only: selecting the displayed recommendation is explicit,
-                        // but treatment enactment remains completely separate.
-                        state.amount = state.insulinCalculated
-                        showTestHoldComplete = true
-                    }
-                )
-            }
-            .listRowBackground(Color.clear)
-            .alert("3-second hold completed", isPresented: $showTestHoldComplete) {
-                Button("OK") {
-                    testHoldProgress = 0
-                }
-            } message: {
-                Text(testHoldSummary + "\nThe recommendation was copied into Bolus. No treatment was enacted.")
-            }
-        }
-
         var treatmentButton: some View {
             let shouldDisplayBolusProgress = bolusInProgressForEntry
 
@@ -654,7 +537,7 @@ extension Treatments {
                         .font(.headline)
                         .foregroundStyle(Color.white)
                         .frame(maxWidth: .infinity, alignment: .center)
-                        .frame(height: 48)
+                        .frame(height: 35)
                     }
                     .disabled(disableTaskButton)
                     .listRowBackground(treatmentButtonBackground)
