@@ -29,6 +29,8 @@ extension Treatments {
         @AppStorage("treatmentsRequireThreeSecondHold") private var requireThreeSecondHold = false
         @State private var testHoldProgress: CGFloat = 0
         @State private var showTestHoldComplete = false
+        @State private var simulatedAutoBolus: Decimal = 0
+        @State private var simulatedAutoFillEnabled = false
 
         private enum Config {
             static let dividerHeight: CGFloat = 2
@@ -97,6 +99,9 @@ extension Treatments {
                 Task {
                     await state.updateForecasts()
                     state.insulinCalculated = await state.calculateInsulin()
+                    if simulatedAutoFillEnabled {
+                        simulatedAutoBolus = state.insulinCalculated
+                    }
                 }
             }
             if let debounce = debounce {
@@ -286,9 +291,8 @@ extension Treatments {
                                     )
                                 }
 
-                                Toggle("Auto-fill recommended bolus", isOn: $autoFillRecommendedBolus)
-                                    .disabled(true)
-                                Text("Experimental — not active in this build")
+                                Toggle("Auto-fill preview", isOn: $simulatedAutoFillEnabled)
+                                Text("Test only — previews the recommendation without changing Trio's actual bolus")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
 
@@ -296,6 +300,9 @@ extension Treatments {
                                 Text("Test only — never enacts treatment")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                            }
+                            .onChange(of: simulatedAutoFillEnabled) { _, enabled in
+                                simulatedAutoBolus = enabled ? state.insulinCalculated : 0
                             }
                         }.listRowBackground(Color.chart)
 
@@ -332,6 +339,24 @@ extension Treatments {
                                             }
                                         }
                                     }
+                                }
+                            }
+
+                            if simulatedAutoFillEnabled {
+                                HStack {
+                                    HStack(spacing: 8) {
+                                        Text("Auto-fill preview")
+                                        Text("TEST")
+                                            .font(.caption2)
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 7)
+                                            .padding(.vertical, 3)
+                                            .background(Color.purple)
+                                            .clipShape(Capsule())
+                                    }
+                                    Spacer()
+                                    Text((formatter.string(from: simulatedAutoBolus as NSNumber) ?? "0") + " U")
+                                        .foregroundStyle(.purple)
                                 }
                             }
 
@@ -540,8 +565,10 @@ extension Treatments {
 
         private var testHoldSummary: String {
             let carbs = mealFormatter.string(from: state.carbs as NSNumber) ?? state.carbs.description
-            let bolus = formatter.string(from: state.amount as NSNumber) ?? state.amount.description
-            return "Test only: \(carbs) g carbs • \(bolus) U bolus"
+            let previewBolus = simulatedAutoFillEnabled ? simulatedAutoBolus : state.amount
+            let bolus = formatter.string(from: previewBolus as NSNumber) ?? previewBolus.description
+            let source = simulatedAutoFillEnabled ? "auto-fill preview" : "current Trio bolus"
+            return "Test only: \(carbs) g carbs • \(bolus) U bolus (\(source))"
         }
 
         private var testHoldButton: some View {
