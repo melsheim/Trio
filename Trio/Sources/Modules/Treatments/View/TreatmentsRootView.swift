@@ -296,8 +296,8 @@ extension Treatments {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
 
-                                Toggle("3-second hold test mode", isOn: $requireThreeSecondHold)
-                                Text("Test only — never enacts treatment")
+                                Toggle("3-second hold to select recommendation", isOn: $requireThreeSecondHold)
+                                Text("UI test — hold copies the displayed recommendation into Bolus; it never enacts treatment")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -565,10 +565,8 @@ extension Treatments {
 
         private var testHoldSummary: String {
             let carbs = mealFormatter.string(from: state.carbs as NSNumber) ?? state.carbs.description
-            let previewBolus = simulatedAutoFillEnabled ? simulatedAutoBolus : state.amount
-            let bolus = formatter.string(from: previewBolus as NSNumber) ?? previewBolus.description
-            let source = simulatedAutoFillEnabled ? "auto-fill preview" : "current Trio bolus"
-            return "Test only: \(carbs) g carbs • \(bolus) U bolus (\(source))"
+            let recommendation = formatter.string(from: state.insulinCalculated as NSNumber) ?? state.insulinCalculated.description
+            return "\(carbs) g carbs • select \(recommendation) U"
         }
 
         private var testHoldButton: some View {
@@ -588,7 +586,7 @@ extension Treatments {
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                    Text("Hold 3 sec • Test only")
+                    Text("Hold 3 sec to select dose")
                         .font(.headline)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -610,7 +608,9 @@ extension Treatments {
                         }
                     },
                     perform: {
-                        // Deliberately isolated from Trio treatment enactment.
+                        // UI validation only: selecting the displayed recommendation is explicit,
+                        // but treatment enactment remains completely separate.
+                        state.amount = state.insulinCalculated
                         showTestHoldComplete = true
                     }
                 )
@@ -621,7 +621,7 @@ extension Treatments {
                     testHoldProgress = 0
                 }
             } message: {
-                Text(testHoldSummary + "\nNo treatment was enacted.")
+                Text(testHoldSummary + "\nThe recommendation was copied into Bolus. No treatment was enacted.")
             }
         }
 
