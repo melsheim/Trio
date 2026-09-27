@@ -1,94 +1,177 @@
 import SwiftUI
 import WidgetKit
 
-// MARK: - Timeline Entry
+private enum BrianGlucoseSnapshot {
+    static let glucoseKey = "BrianComplication.glucose"
+    static let trendKey = "BrianComplication.trend"
+    static let timestampKey = "BrianComplication.timestamp"
+    static let staleAfter: TimeInterval = 7 * 60
+
+    static var appGroup: String? {
+        Bundle.main.object(forInfoDictionaryKey: "TRIOAppGroupIdentifier") as? String
+    }
+
+    static func load(at now: Date = Date()) -> (glucose: String, arrow: String?, timestamp: Date?) {
+        guard let appGroup,
+              let defaults = UserDefaults(suiteName: appGroup)
+        else { return ("---", nil, nil) }
+
+        let timestampValue = defaults.double(forKey: timestampKey)
+        guard timestampValue > 0 else { return ("---", nil, nil) }
+
+        let timestamp = Date(timeIntervalSince1970: timestampValue)
+        guard now.timeIntervalSince(timestamp) <= staleAfter else {
+            return ("---", nil, timestamp)
+        }
+
+        let glucose = defaults.string(forKey: glucoseKey) ?? "---"
+        let trend = defaults.string(forKey: trendKey)
+        return (glucose, trendArrow(for: trend), timestamp)
+    }
+
+    static func trendArrow(for trend: String?) -> String? {
+        switch trend {
+        case "DoubleUp": return "↑↑"
+        case "SingleUp": return "↑"
+        case "FortyFiveUp": return "↗"
+        case "Flat": return "→"
+        case "FortyFiveDown": return "↘"
+        case "SingleDown": return "↓"
+        case "DoubleDown": return "↓↓"
+        default: return nil
+        }
+    }
+}
 
 struct TrioWatchComplicationEntry: TimelineEntry {
     let date: Date
+    let glucose: String
+    let arrow: String?
+    let sampleDate: Date?
 }
-
-// MARK: - Provider
 
 struct TrioWatchComplicationProvider: TimelineProvider {
     func placeholder(in _: Context) -> TrioWatchComplicationEntry {
-        TrioWatchComplicationEntry(date: Date())
+        TrioWatchComplicationEntry(date: Date(), glucose: "123", arrow: "→", sampleDate: Date())
     }
 
     func getSnapshot(in _: Context, completion: @escaping (TrioWatchComplicationEntry) -> Void) {
-        let entry = TrioWatchComplicationEntry(date: Date())
-        completion(entry)
+        completion(makeEntry())
     }
 
     func getTimeline(in _: Context, completion: @escaping (Timeline<TrioWatchComplicationEntry>) -> Void) {
-        let entry = TrioWatchComplicationEntry(date: Date())
-        let timeline = Timeline(entries: [entry], policy: .never)
-        completion(timeline)
+        let now = Date()
+        let current = makeEntry(at: now)
+        var entries = [current]
+
+        // Schedule an explicit stale-state entry. A fresh glucose update asks
+        // WidgetKit to replace this timeline before the stale entry is reached.
+        if let sampleDate = current.sampleDate {
+            let staleDate = sampleDate.addingTimeInterval(BrianGlucoseSnapshot.staleAfter)
+            if staleDate > now {
+                entries.append(
+                    TrioWatchComplicationEntry(
+                        date: staleDate,
+                        glucose: "---",
+                        arrow: nil,
+                        sampleDate: sampleDate
+                    )
+                )
+            }
+        }
+
+        completion(Timeline(entries: entries, policy: .never))
+    }
+
+    private func makeEntry(at date: Date = Date()) -> TrioWatchComplicationEntry {
+        let snapshot = BrianGlucoseSnapshot.load(at: date)
+        return TrioWatchComplicationEntry(
+            date: date,
+            glucose: snapshot.glucose,
+            arrow: snapshot.arrow,
+            sampleDate: snapshot.timestamp
+        )
     }
 }
 
-// MARK: - Views
-
-//// Displayed View Wrapper
 struct TrioWatchComplicationEntryView: View {
     @Environment(\.widgetFamily) private var widgetFamily
-
     var entry: TrioWatchComplicationEntry
 
     var body: some View {
         switch widgetFamily {
         case .accessoryCircular:
             TrioAccessoryCircularView(entry: entry)
+        #if os(watchOS)
         case .accessoryCorner:
             TrioAccessoryCornerView(entry: entry)
+        #endif
         default:
-            Image("ComplicationIcon")
-                .widgetAccentable()
-                .widgetBackground(backgroundView: Color.clear)
+            TrioAccessoryCircularView(entry: entry)
         }
     }
 }
 
-/// Corner Complication
+#if os(watchOS)
 struct TrioAccessoryCornerView: View {
-    var entry: TrioWatchComplicationProvider.Entry
+    var entry: TrioWatchComplicationEntry
 
     var body: some View {
-        Text("")
+        Text(entry.glucose)
+            .font(.headline)
+            .fontWeight(.bold)
+            .minimumScaleFactor(0.55)
             .widgetCurvesContent()
             .widgetLabel {
-                Text("Trio")
+                Text(entry.arrow ?? "")
             }
             .widgetBackground(backgroundView: Color.clear)
     }
 }
+#endif
 
-/// Circular Complication
 struct TrioAccessoryCircularView: View {
-    var entry: TrioWatchComplicationProvider.Entry
+    var entry: TrioWatchComplicationEntry
 
     var body: some View {
-        Image("ComplicationIcon")
-            .resizable()
-            .widgetAccentable()
-            .widgetBackground(backgroundView: Color.clear)
+        VStack(spacing: -2) {
+            Text(entry.glucose)
+                .font(.system(size: 21, weight: .bold, design: .rounded))
+                .minimumScaleFactor(0.55)
+                .lineLimit(1)
+
+            if let arrow = entry.arrow {
+                Text(arrow)
+                    .font(.system(size: 15, weight: .semibold))
+                    .lineLimit(1)
+            }
+        }
+        .widgetAccentable()
+        .widgetBackground(backgroundView: Color.clear)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Glucose \(entry.glucose) \(entry.arrow ?? "")")
     }
 }
 
-// MARK: - Widget Configuration
-
 @main struct TrioWatchComplication: Widget {
-    let kind: String = "TrioWatchComplication"
+    let kind = "TrioWatchComplication"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: TrioWatchComplicationProvider()) { entry in
             TrioWatchComplicationEntryView(entry: entry)
+                .widgetURL(URL(string: "Trio://"))
         }
-        .configurationDisplayName("Trio")
-        .description("Displays Trio app icon as complication")
-        .supportedFamilies([
-            .accessoryCorner,
-            .accessoryCircular
-        ])
+        .configurationDisplayName("Trio Glucose")
+        .description("Large current glucose and trend. Stale readings are hidden.")
+        .supportedFamilies(supportedFamilies)
+    }
+
+    private var supportedFamilies: [WidgetFamily] {
+        #if os(watchOS)
+        return [.accessoryCorner, .accessoryCircular]
+        #else
+        return [.accessoryCircular]
+        #endif
     }
 }
 
