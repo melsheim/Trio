@@ -25,6 +25,8 @@ extension Treatments {
         @State private var debounce: DispatchWorkItem?
         @State private var showFatProteinOrderBanner = false
         @State private var showTreatmentOptions = false
+        @AppStorage("treatmentsAutoFillRecommendedBolus") private var autoFillRecommendedBolus = false
+        @AppStorage("treatmentsRequireThreeSecondHold") private var requireThreeSecondHold = false
 
         private enum Config {
             static let dividerHeight: CGFloat = 2
@@ -281,6 +283,18 @@ extension Treatments {
                                         maxLength: 25
                                     )
                                 }
+
+                                Toggle("Auto-fill recommended bolus", isOn: $autoFillRecommendedBolus)
+                                    .disabled(true)
+                                Text("Experimental — not active in this build")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                Toggle("Require 3-second hold", isOn: $requireThreeSecondHold)
+                                    .disabled(true)
+                                Text("Experimental — existing Trio treatment action remains active")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
                         }.listRowBackground(Color.chart)
 
@@ -362,7 +376,18 @@ extension Treatments {
                             }
 
                             HStack {
-                                Text("Bolus")
+                                HStack(spacing: 8) {
+                                    Text("Bolus")
+                                    if autoFillRecommendedBolus, state.amount == state.insulinCalculated, state.amount > 0 {
+                                        Text("Auto")
+                                            .font(.caption2)
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 7)
+                                            .padding(.vertical, 3)
+                                            .background(Color.accentColor)
+                                            .clipShape(Capsule())
+                                    }
+                                }
                                 Spacer()
                                 TextFieldWithToolBar(
                                     text: $state.amount,
@@ -394,6 +419,7 @@ extension Treatments {
                         treatmentButton
                     }
                     .listSectionSpacing(sectionSpacing)
+                    .padding(.top, 10)
                 }
                 .blur(radius: state.isAwaitingDeterminationResult ? 5 : 0)
 
@@ -536,7 +562,7 @@ extension Treatments {
                         .font(.headline)
                         .foregroundStyle(Color.white)
                         .frame(maxWidth: .infinity, alignment: .center)
-                        .frame(height: 35)
+                        .frame(height: 48)
                     }
                     .disabled(disableTaskButton)
                     .listRowBackground(treatmentButtonBackground)
