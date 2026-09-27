@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import WatchConnectivity
+import WidgetKit
 
 /// WatchState manages the communication between the Watch app and the iPhone app using WatchConnectivity.
 /// It handles glucose data synchronization and sending treatment requests (bolus, carbs) to the phone.
@@ -471,6 +472,19 @@ import WatchConnectivity
 
         if let delta = message[WatchMessageKeys.delta] as? String {
             self.delta = delta
+        }
+
+        // Keep a tiny shared snapshot for the Brian glucose complication.
+        // The complication independently rejects stale values.
+        if let glucose = message[WatchMessageKeys.currentGlucose] as? String,
+           let timestamp = message[WatchMessageKeys.date] as? TimeInterval,
+           let appGroup = Bundle.main.object(forInfoDictionaryKey: "TRIOAppGroupIdentifier") as? String,
+           let sharedDefaults = UserDefaults(suiteName: appGroup)
+        {
+            sharedDefaults.set(glucose, forKey: "BrianComplication.glucose")
+            sharedDefaults.set(message[WatchMessageKeys.trend] as? String, forKey: "BrianComplication.trend")
+            sharedDefaults.set(timestamp, forKey: "BrianComplication.timestamp")
+            WidgetCenter.shared.reloadTimelines(ofKind: "TrioWatchComplication")
         }
 
         if let iob = message[WatchMessageKeys.iob] as? String {
