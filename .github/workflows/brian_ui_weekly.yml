@@ -1,0 +1,51 @@
+name: Brian UI Weekly Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Sundays at 08:15 UTC, after the normal Trio upstream sync window.
+    - cron: "15 8 * * 0"
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  sync-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Brian UI
+        uses: actions/checkout@v5
+        with:
+          ref: brian/ui
+          token: ${{ secrets.GH_PAT }}
+          fetch-depth: 0
+
+      - name: Fetch dev
+        run: |
+          git fetch origin dev
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge dev into Brian UI
+        run: |
+          git merge --no-edit origin/dev
+
+      - name: Verify Treatments customization survived merge
+        run: |
+          FILE="Trio/Sources/Modules/Treatments/View/TreatmentsRootView.swift"
+          grep -q 'showTreatmentOptions' "$FILE"
+          grep -q 'Auto-fill preview' "$FILE"
+          grep -q '3-second hold test mode' "$FILE"
+          if grep -q 'ForecastChart(state: state)' "$FILE"; then
+            echo "::error::Upstream merge restored the forecast graph into the Brian Treatments screen."
+            exit 1
+          fi
+
+      - name: Push validated merge
+        run: git push origin HEAD:brian/ui
+
+      - name: Trigger Trio build for Brian UI
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: gh workflow run build_trio.yml --repo "${{ github.repository }}" --ref brian/ui
