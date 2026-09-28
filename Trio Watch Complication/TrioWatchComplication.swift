@@ -1,5 +1,6 @@
 import SwiftUI
 import WidgetKit
+import WatchConnectivity
 
 private enum BrianGlucoseSnapshot {
     static let glucoseKey = "BrianComplication.glucose"
@@ -8,22 +9,32 @@ private enum BrianGlucoseSnapshot {
     static let staleAfter: TimeInterval = 7 * 60
 
     static func load(at now: Date = Date()) -> (glucose: String, arrow: String?, timestamp: Date?) {
-        // The complication extension cannot share the Watch app's App Group
-        // with the current provisioning setup. Keep the stale-safe UI in place;
-        // a subsequent transport experiment can replace this storage adapter.
-        let defaults = UserDefaults.standard
-
-        let timestampValue = defaults.double(forKey: timestampKey)
-        guard timestampValue > 0 else { return ("---", nil, nil) }
-
-        let timestamp = Date(timeIntervalSince1970: timestampValue)
-        guard now.timeIntervalSince(timestamp) <= staleAfter else {
-            return ("---", nil, timestamp)
+        let context = WCSession.default.receivedApplicationContext
+        guard let state = context["watchState"] as? [String: Any],
+              let glucose = state["currentGlucose"] as? String,
+              let timestampValue = state["date"] as? TimeInterval
+        else {
+            return ("---", nil, nil)
         }
 
-        let glucose = defaults.string(forKey: glucoseKey) ?? "---"
-        let trend = defaults.string(forKey: trendKey)
-        return (glucose, trendArrow(for: trend), timestamp)
+        // Prefer the timestamp of the newest actual glucose sample when available,
+        // rather than the WatchState send timestamp.
+        let sampleTimestamp: TimeInterval = {
+            if let glucoseValues = state["glucoseValues"] as? [[String: Any]],
+               let newest = glucoseValues.compactMap({ $0["date"] as? TimeInterval }).max()
+            {
+                return newest
+            }
+            return timestampValue
+        }()
+
+        let sampleDate = Date(timeIntervalSince1970: sampleTimestamp)
+        guard now.timeIntervalSince(sampleDate) <= staleAfter else {
+            return ("---", nil, sampleDate)
+        }
+
+        let trend = state["trend"] as? String
+        return (glucose, trendArrow(for: trend), sampleDate)
     }
 
     static func trendArrow(for trend: String?) -> String? {
@@ -48,6 +59,12 @@ struct TrioWatchComplicationEntry: TimelineEntry {
 }
 
 struct TrioWatchComplicationProvider: TimelineProvider {
+    init() {
+        if WCSession.isSupported(), WCSession.default.activationState != .activated {
+            WCSession.default.activate()
+        }
+    }
+
     func placeholder(in _: Context) -> TrioWatchComplicationEntry {
         TrioWatchComplicationEntry(date: Date(), glucose: "123", arrow: "→", sampleDate: Date())
     }
