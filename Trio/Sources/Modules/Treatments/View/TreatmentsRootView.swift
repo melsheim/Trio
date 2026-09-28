@@ -24,6 +24,8 @@ extension Treatments {
         @State private var pushed: Bool = false
         @State private var debounce: DispatchWorkItem?
         @State private var showFatProteinOrderBanner = false
+        // BRIAN_UI_TREATMENTS_CUSTOMIZATION
+        // Keep the Brian condensed Treatments layout when merging upstream dev.
         @State private var showTreatmentOptions = false
 
         private enum Config {
