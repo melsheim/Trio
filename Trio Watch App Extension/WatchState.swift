@@ -1,8 +1,6 @@
 import Foundation
 import SwiftUI
 import WatchConnectivity
-import WidgetKit
-import ClockKit
 
 /// WatchState manages the communication between the Watch app and the iPhone app using WatchConnectivity.
 /// It handles glucose data synchronization and sending treatment requests (bolus, carbs) to the phone.
@@ -228,10 +226,6 @@ import ClockKit
 
     func session(_: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         handleIncomingWatchStatePayload(userInfo)
-    }
-
-    func session(_: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        handleIncomingWatchStatePayload(applicationContext)
     }
 
     /// Shared path for watch-state payloads from either delegate method.
@@ -505,18 +499,6 @@ import ClockKit
                 )
             }
             .sorted { $0.date < $1.date }
-
-            if let latestSample = glucoseValues.last {
-                UserDefaults.standard.set(currentGlucose, forKey: "BrianClockComplication.glucose")
-                UserDefaults.standard.set(trend, forKey: "BrianClockComplication.trend")
-                UserDefaults.standard.set(latestSample.date.timeIntervalSince1970, forKey: "BrianClockComplication.timestamp")
-
-                if let complications = CLKComplicationServer.sharedInstance().activeComplications {
-                    for complication in complications {
-                        CLKComplicationServer.sharedInstance().reloadTimeline(for: complication)
-                    }
-                }
-            }
         }
 
         if let minYAxisValue = message[WatchMessageKeys.minYAxisValue] {
