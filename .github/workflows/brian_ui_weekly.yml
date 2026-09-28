@@ -35,8 +35,8 @@ jobs:
         run: |
           FILE="Trio/Sources/Modules/Treatments/View/TreatmentsRootView.swift"
           grep -q 'showTreatmentOptions' "$FILE"
-          grep -q 'Auto-fill preview' "$FILE"
-          grep -q '3-second hold test mode' "$FILE"
+          grep -q 'DisclosureGroup("Options"' "$FILE"
+          grep -q 'focusedField = .carbs' "$FILE"
           if grep -q 'ForecastChart(state: state)' "$FILE"; then
             echo "::error::Upstream merge restored the forecast graph into the Brian Treatments screen."
             exit 1
