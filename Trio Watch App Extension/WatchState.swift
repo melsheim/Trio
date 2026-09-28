@@ -229,6 +229,10 @@ import WidgetKit
         handleIncomingWatchStatePayload(userInfo)
     }
 
+    func session(_: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        handleIncomingWatchStatePayload(applicationContext)
+    }
+
     /// Shared path for watch-state payloads from either delegate method.
     /// Enforces the freshness contract in one place so the two delivery paths
     /// can't drift.
