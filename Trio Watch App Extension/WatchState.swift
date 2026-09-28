@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import WatchConnectivity
 import WidgetKit
+import ClockKit
 
 /// WatchState manages the communication between the Watch app and the iPhone app using WatchConnectivity.
 /// It handles glucose data synchronization and sending treatment requests (bolus, carbs) to the phone.
@@ -478,19 +479,6 @@ import WidgetKit
             self.delta = delta
         }
 
-        // Keep a tiny shared snapshot for the Brian glucose complication.
-        // The complication independently rejects stale values.
-        if let glucose = message[WatchMessageKeys.currentGlucose] as? String,
-           let timestamp = message[WatchMessageKeys.date] as? TimeInterval,
-           let appGroup = Bundle.main.object(forInfoDictionaryKey: "TRIOAppGroupIdentifier") as? String,
-           let sharedDefaults = UserDefaults(suiteName: appGroup)
-        {
-            sharedDefaults.set(glucose, forKey: "BrianComplication.glucose")
-            sharedDefaults.set(message[WatchMessageKeys.trend] as? String, forKey: "BrianComplication.trend")
-            sharedDefaults.set(timestamp, forKey: "BrianComplication.timestamp")
-            WidgetCenter.shared.reloadTimelines(ofKind: "TrioWatchComplication")
-        }
-
         if let iob = message[WatchMessageKeys.iob] as? String {
             self.iob = iob
         }
@@ -517,6 +505,18 @@ import WidgetKit
                 )
             }
             .sorted { $0.date < $1.date }
+
+            if let latestSample = glucoseValues.last {
+                UserDefaults.standard.set(currentGlucose, forKey: "BrianClockComplication.glucose")
+                UserDefaults.standard.set(trend, forKey: "BrianClockComplication.trend")
+                UserDefaults.standard.set(latestSample.date.timeIntervalSince1970, forKey: "BrianClockComplication.timestamp")
+
+                if let complications = CLKComplicationServer.sharedInstance().activeComplications {
+                    for complication in complications {
+                        CLKComplicationServer.sharedInstance().reloadTimeline(for: complication)
+                    }
+                }
+            }
         }
 
         if let minYAxisValue = message[WatchMessageKeys.minYAxisValue] {
