@@ -1,0 +1,117 @@
+name: Brian UI Weekly Update and Build
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Sunday 08:15 UTC. This workflow is self-contained:
+    # upstream Trio dev -> melsheim/dev -> brian/ui -> TestFlight build.
+    - cron: "15 8 * * 0"
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  update-dev:
+    name: Update dev from upstream Trio
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v5
+        with:
+          ref: dev
+          token: ${{ secrets.GH_PAT }}
+          fetch-depth: 0
+
+      - name: Merge nightscout/Trio dev into fork dev
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/nightscout/Trio.git 2>/dev/null ||             git remote set-url upstream https://github.com/nightscout/Trio.git
+          git fetch upstream dev
+          git checkout dev
+          git merge --no-edit upstream/dev
+          git push origin dev
+
+  update-brian-ui:
+    name: Merge dev into Brian UI
+    needs: update-dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Brian UI
+        uses: actions/checkout@v5
+        with:
+          ref: brian/ui
+          token: ${{ secrets.GH_PAT }}
+          fetch-depth: 0
+
+      - name: Merge updated dev into Brian UI
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin dev
+          git merge --no-edit origin/dev
+
+      - name: Verify condensed Treatments screen
+        run: |
+          FILE="Trio/Sources/Modules/Treatments/View/TreatmentsRootView.swift"
+
+          grep -q 'BRIAN_UI_TREATMENTS_CUSTOMIZATION' "$FILE" || {
+            echo "::error::Brian Treatments customization marker is missing."
+            exit 1
+          }
+
+          grep -q 'showTreatmentOptions' "$FILE" || {
+            echo "::error::Brian Options state is missing."
+            exit 1
+          }
+
+          grep -q 'DisclosureGroup("Options"' "$FILE" || {
+            echo "::error::Brian condensed Options section is missing."
+            exit 1
+          }
+
+          grep -q 'focusedField = .carbs' "$FILE" || {
+            echo "::error::Brian automatic Carbs focus is missing."
+            exit 1
+          }
+
+          grep -q '.padding(.top, 26)' "$FILE" || {
+            echo "::error::Brian Treatments vertical positioning changed."
+            exit 1
+          }
+
+          if grep -q 'ForecastChart(state: state)' "$FILE"; then
+            echo "::error::Upstream merge restored the Treatments forecast graph."
+            exit 1
+          fi
+
+      - name: Verify Watch code remains stock Trio
+        run: |
+          git fetch origin dev
+          git diff --exit-code origin/dev --             "Trio/Sources/Services/WatchManager/AppleWatchManager.swift"             "Trio Watch App Extension/WatchState.swift"             "Trio Watch App Extension/TrioWatchApp.swift"             "Trio Watch Complication/TrioWatchComplication.swift"             "Trio.xcodeproj/project.pbxproj"             "fastlane/Fastfile" || {
+              echo "::error::Brian UI contains Watch/project/signing changes that differ from dev."
+              exit 1
+            }
+
+      - name: Push validated Brian UI
+        run: git push origin HEAD:brian/ui
+
+  build-brian-ui:
+    name: Build Brian UI and upload to TestFlight
+    needs: update-brian-ui
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Build Trio on Brian UI
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          gh workflow run build_trio.yml --repo "${{ github.repository }}" --ref brian/ui
+          sleep 10
+          RUN_ID=$(gh run list             --repo "${{ github.repository }}"             --workflow build_trio.yml             --branch brian/ui             --event workflow_dispatch             --limit 1             --json databaseId             --jq '.[0].databaseId')
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "::error::Could not locate the triggered Brian UI build."
+            exit 1
+          fi
+          echo "Watching Build Trio run $RUN_ID"
+          gh run watch "$RUN_ID" --repo "${{ github.repository }}" --exit-status
