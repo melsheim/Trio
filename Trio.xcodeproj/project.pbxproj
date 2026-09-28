@@ -6564,6 +6564,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				CODE_SIGN_ENTITLEMENTS = "Trio Watch App Extension/TrioWatch.entitlements";
 				INFOPLIST_KEY_CFBundleDisplayName = "$(APP_DISPLAY_NAME)";
+				INFOPLIST_KEY_CLKComplicationPrincipalClass = "$(PRODUCT_MODULE_NAME).BrianGlucoseComplicationController";
+				INFOPLIST_KEY_CLKComplicationSupportedFamilies = "CLKComplicationFamilyGraphicCircular CLKComplicationFamilyGraphicCorner CLKComplicationFamilyCircularSmall CLKComplicationFamilyUtilitarianSmall CLKComplicationFamilyUtilitarianSmallFlat";
 				INFOPLIST_KEY_TRIOAppGroupIdentifier = "$(TRIO_APP_GROUP_ID)";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "$(BUNDLE_IDENTIFIER)";
@@ -6603,6 +6605,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				CODE_SIGN_ENTITLEMENTS = "Trio Watch App Extension/TrioWatch.entitlements";
 				INFOPLIST_KEY_CFBundleDisplayName = "$(APP_DISPLAY_NAME)";
+				INFOPLIST_KEY_CLKComplicationPrincipalClass = "$(PRODUCT_MODULE_NAME).BrianGlucoseComplicationController";
+				INFOPLIST_KEY_CLKComplicationSupportedFamilies = "CLKComplicationFamilyGraphicCircular CLKComplicationFamilyGraphicCorner CLKComplicationFamilyCircularSmall CLKComplicationFamilyUtilitarianSmall CLKComplicationFamilyUtilitarianSmallFlat";
 				INFOPLIST_KEY_TRIOAppGroupIdentifier = "$(TRIO_APP_GROUP_ID)";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "$(BUNDLE_IDENTIFIER)";
