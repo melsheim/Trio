@@ -1096,6 +1096,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				BD8207CE2D2B42E70023339D /* Trio Watch Complication Extension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -4905,10 +4906,12 @@
 				BDFF79782D25AA870016C40C /* Sources */,
 				BDFF79792D25AA870016C40C /* Frameworks */,
 				BDFF797A2D25AA870016C40C /* Resources */,
+				BD8207CF2D2B42E80023339D /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				BD8207CD2D2B42E70023339D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				BDFF7A9E2D25FA970016C40C /* Preview Content */,
@@ -6484,7 +6487,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Trio Watch Complication/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "$(APP_DISPLAY_NAME)";
-				INFOPLIST_KEY_TRIOAppGroupIdentifier = "$(TRIO_APP_GROUP_ID)";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -6522,7 +6524,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Trio Watch Complication/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "$(APP_DISPLAY_NAME)";
-				INFOPLIST_KEY_TRIOAppGroupIdentifier = "$(TRIO_APP_GROUP_ID)";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -6559,11 +6560,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
-				CODE_SIGN_ENTITLEMENTS = "Trio Watch App Extension/TrioWatch.entitlements";
 				INFOPLIST_KEY_CFBundleDisplayName = "$(APP_DISPLAY_NAME)";
-				INFOPLIST_KEY_CLKComplicationPrincipalClass = "$(PRODUCT_MODULE_NAME).BrianGlucoseComplicationController";
-				INFOPLIST_KEY_CLKComplicationSupportedFamilies = "CLKComplicationFamilyGraphicCircular CLKComplicationFamilyGraphicCorner CLKComplicationFamilyCircularSmall CLKComplicationFamilyUtilitarianSmall CLKComplicationFamilyUtilitarianSmallFlat";
-				INFOPLIST_KEY_TRIOAppGroupIdentifier = "$(TRIO_APP_GROUP_ID)";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "$(BUNDLE_IDENTIFIER)";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -6600,11 +6597,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
-				CODE_SIGN_ENTITLEMENTS = "Trio Watch App Extension/TrioWatch.entitlements";
 				INFOPLIST_KEY_CFBundleDisplayName = "$(APP_DISPLAY_NAME)";
-				INFOPLIST_KEY_CLKComplicationPrincipalClass = "$(PRODUCT_MODULE_NAME).BrianGlucoseComplicationController";
-				INFOPLIST_KEY_CLKComplicationSupportedFamilies = "CLKComplicationFamilyGraphicCircular CLKComplicationFamilyGraphicCorner CLKComplicationFamilyCircularSmall CLKComplicationFamilyUtilitarianSmall CLKComplicationFamilyUtilitarianSmallFlat";
-				INFOPLIST_KEY_TRIOAppGroupIdentifier = "$(TRIO_APP_GROUP_ID)";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "$(BUNDLE_IDENTIFIER)";
 				LD_RUNPATH_SEARCH_PATHS = (
