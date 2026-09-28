@@ -1096,7 +1096,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				BD8207CE2D2B42E70023339D /* Trio Watch Complication Extension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -4906,12 +4905,10 @@
 				BDFF79782D25AA870016C40C /* Sources */,
 				BDFF79792D25AA870016C40C /* Frameworks */,
 				BDFF797A2D25AA870016C40C /* Resources */,
-				BD8207CF2D2B42E80023339D /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				BD8207CD2D2B42E70023339D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				BDFF7A9E2D25FA970016C40C /* Preview Content */,
