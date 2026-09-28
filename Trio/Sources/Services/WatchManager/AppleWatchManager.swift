@@ -72,7 +72,7 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
             .sink { [weak self] _ in
                 guard let self = self else { return }
                 // Skip if no watch is paired or app not installed
-                guard let session = self.session, session.isPaired, session.isReachable,
+                guard let session = self.session, session.isPaired,
                       session.isWatchAppInstalled else { return }
                 Task {
                     let state = await self.setupWatchState()
@@ -173,7 +173,7 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
     /// - Returns: WatchState containing current glucose readings and trends and determination infos for displaying cob and iob in the view
     func setupWatchState() async -> WatchState {
         // Check if a watch is paired and reachable before doing expensive calculations
-        guard let session = session, session.isPaired, session.isReachable, session.isWatchAppInstalled else {
+        guard let session = session, session.isPaired, session.isWatchAppInstalled else {
             debug(.watchManager, "⌚️❌ Skipping setupWatchState - No Watch is paired or app not installed")
             return WatchState(date: Date())
         }
@@ -594,15 +594,21 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
 
         let message: [String: Any] = watchStateToDictionary(from: state)
 
-        // if session is reachable, it means watch App is in the foreground -> send watchState as message
-        // if session is not reachable, it means it's in background -> send watchState as userInfo
+        // Mirror Loop's latest-state transport strategy:
+        // foreground/reachable -> immediate message;
+        // background/unreachable -> replace the application context so the Watch
+        // receives the newest snapshot rather than a queue of obsolete UI states.
         if session.isReachable {
             session.sendMessage([WatchMessageKeys.watchState: message], replyHandler: nil) { error in
                 debug(.watchManager, "❌ Error sending watch state: \(error)")
             }
         } else {
-            session.transferUserInfo([WatchMessageKeys.watchState: message])
-            debug(.watchManager, "📤 Transferred new WatchState snapshot via userInfo")
+            do {
+                try session.updateApplicationContext([WatchMessageKeys.watchState: message])
+                debug(.watchManager, "📤 Updated background WatchState application context")
+            } catch {
+                debug(.watchManager, "❌ Error updating WatchState application context: \(error)")
+            }
         }
         WatchStateSnapshot.saveLatestDateToDisk(state.date)
     }
@@ -656,7 +662,7 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
             {
                 debug(.watchManager, "📱 Watch requested watch state data update.")
                 // Skip if no watch is paired or app not installed
-                guard let session = self.session, session.isPaired, session.isReachable,
+                guard let session = self.session, session.isPaired,
                       session.isWatchAppInstalled else { return }
                 Task {
                     let state = await self.setupWatchState()
