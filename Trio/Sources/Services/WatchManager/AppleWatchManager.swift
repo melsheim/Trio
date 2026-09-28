@@ -34,6 +34,7 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
     private var highGlucose: Decimal = 180.0
     private var currentGlucoseTarget: Decimal = 100.0
     private var activeBolusAmount: Double = 0.0
+    private var lastComplicationGlucoseDate: Date?
 
     // Queue for handling Core Data change notifications
     private let queue = DispatchQueue(label: "BaseWatchManagerManager.queue", qos: .utility)
@@ -594,22 +595,35 @@ final class BaseWatchManager: NSObject, WCSessionDelegate, Injectable, WatchMana
 
         let message: [String: Any] = watchStateToDictionary(from: state)
 
-        // Mirror Loop's latest-state transport strategy:
-        // foreground/reachable -> immediate message;
-        // background/unreachable -> replace the application context so the Watch
-        // receives the newest snapshot rather than a queue of obsolete UI states.
+        let payload = [WatchMessageKeys.watchState: message]
+
+        // Loop-style latest-state transport: always replace application context
+        // so the Watch has the newest snapshot available whenever it wakes.
+        do {
+            try session.updateApplicationContext(payload)
+            debug(.watchManager, "📤 Updated latest WatchState application context")
+        } catch {
+            debug(.watchManager, "❌ Error updating WatchState application context: \(error)")
+        }
+
+        // If the Watch app is active, also deliver immediately.
         if session.isReachable {
-            session.sendMessage([WatchMessageKeys.watchState: message], replyHandler: nil) { error in
+            session.sendMessage(payload, replyHandler: nil) { error in
                 debug(.watchManager, "❌ Error sending watch state: \(error)")
             }
-        } else {
-            do {
-                try session.updateApplicationContext([WatchMessageKeys.watchState: message])
-                debug(.watchManager, "📤 Updated background WatchState application context")
-            } catch {
-                debug(.watchManager, "❌ Error updating WatchState application context: \(error)")
-            }
         }
+
+        // Match Loop's complication path: only push a complication transfer
+        // when there is a genuinely newer glucose sample.
+        if session.isComplicationEnabled,
+           let latestGlucoseDate = state.glucoseValues.last?.date,
+           lastComplicationGlucoseDate == nil || latestGlucoseDate > lastComplicationGlucoseDate!
+        {
+            session.transferCurrentComplicationUserInfo(payload)
+            lastComplicationGlucoseDate = latestGlucoseDate
+            debug(.watchManager, "📤 Transferred current complication glucose snapshot")
+        }
+
         WatchStateSnapshot.saveLatestDateToDisk(state.date)
     }
 
