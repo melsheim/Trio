@@ -1,0 +1,136 @@
+name: Weekly Trio Build Recovery
+run-name: Weekly Trio build check (${{ github.ref_name }})
+
+on:
+  schedule:
+    # Primary Sunday build, an independent Sunday backup, and Monday catch-up.
+    - cron: '17 7 * * 0'
+      timezone: America/Los_Angeles
+    - cron: '47 13 * * 0'
+      timezone: America/Los_Angeles
+    - cron: '17 7 * * 1'
+      timezone: America/Los_Angeles
+  workflow_dispatch:
+    inputs:
+      check_only:
+        description: Inspect build status without starting or retrying a build
+        type: boolean
+        default: true
+
+# Only the coordinator can dispatch/retry; it never checks out or executes app code.
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: weekly-trio-build-recovery
+  cancel-in-progress: false
+
+jobs:
+  ensure_weekly_build:
+    if: github.repository == 'melsheim/Trio' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Ensure a real weekly TestFlight build
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          CHECK_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only }}
+          SCHEDULED_BUILD: ${{ vars.SCHEDULED_BUILD }}
+        with:
+          script: |
+            const repo = context.repo;
+            const branch = context.payload.repository.default_branch;
+            const checkOnly = process.env.CHECK_ONLY === 'true';
+            const report = async message => {
+              core.info(message);
+              await core.summary.addHeading('Weekly Trio build recovery').addRaw(message).write();
+            };
+            if (process.env.SCHEDULED_BUILD === 'false') {
+              await report('Automatic builds are disabled by SCHEDULED_BUILD=false.');
+              return;
+            }
+
+            const localDate = value => {
+              const parts = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit'
+              }).formatToParts(new Date(value));
+              const part = type => parts.find(p => p.type === type).value;
+              return `${part('year')}-${part('month')}-${part('day')}`;
+            };
+            const sunday = new Date(`${localDate(new Date())}T00:00:00Z`);
+            sunday.setUTCDate(sunday.getUTCDate() - sunday.getUTCDay());
+            const weekStart = sunday.toISOString().slice(0, 10);
+            const allRuns = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              ...repo, workflow_id: 'build_trio.yml', branch,
+              created: `>=${weekStart}`, per_page: 100
+            });
+            const runs = allRuns.filter(run =>
+              ['schedule', 'workflow_dispatch'].includes(run.event) &&
+              run.head_branch === branch && localDate(run.created_at) >= weekStart
+            ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at) || b.id - a.id);
+            const active = runs.find(run => run.status !== 'completed');
+            if (active) {
+              await report(`A build is already queued or running: ${active.html_url}`);
+              return;
+            }
+
+            const jobsByRun = new Map();
+            const jobsFor = async run => {
+              if (!jobsByRun.has(run.id)) {
+                jobsByRun.set(run.id, await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+                  ...repo, run_id: run.id, filter: 'latest', per_page: 100
+                }));
+              }
+              return jobsByRun.get(run.id);
+            };
+            for (const run of runs) {
+              const jobs = await jobsFor(run);
+              if (jobs.some(job => job.name === 'Build' && job.steps?.some(step =>
+                step.name === 'Fastlane upload to TestFlight' && step.conclusion === 'success'
+              ))) {
+                await report(`This week's TestFlight upload already succeeded: ${run.html_url}`);
+                return;
+              }
+            }
+
+            const latest = runs[0];
+            if (latest) {
+              const jobs = await jobsFor(latest);
+              const expectedSkip = latest.conclusion === 'cancelled' && jobs.some(job =>
+                job.name === 'Cancel run when there is nothing to build' && job.conclusion !== 'skipped'
+              );
+              if (latest.conclusion === 'cancelled' && !expectedSkip) {
+                core.setFailed(`Build was cancelled; leaving it stopped for review: ${latest.html_url}`);
+                return;
+              }
+              if (!expectedSkip && latest.conclusion !== 'success') {
+                const unsuccessful = jobs.filter(job => ['failure', 'cancelled', 'timed_out'].includes(job.conclusion));
+                const runnerFailure = latest.conclusion === 'failure' && unsuccessful.length > 0 &&
+                  unsuccessful.every(job => !job.steps?.length);
+                if (!runnerFailure) {
+                  core.setFailed(`Build needs review; this is not an unacquired-runner failure: ${latest.html_url}`);
+                  return;
+                }
+                if ((latest.run_attempt || 1) >= 3) {
+                  core.setFailed(`Stopped after three attempts; GitHub runners still unavailable: ${latest.html_url}`);
+                  return;
+                }
+                if (!checkOnly) {
+                  await github.request('POST /repos/{owner}/{repo}/actions/jobs/{job_id}/rerun', {
+                    ...repo, job_id: unsuccessful[0].id
+                  });
+                }
+                await report(`${checkOnly ? 'Check only: would retry' : 'Retried'} the unacquired runner job: ${latest.html_url}`);
+                return;
+              }
+            }
+
+            // Dispatch bypasses the upstream workflow's monthly/no-code-change gate.
+            // The existing workflow still performs all normal signing/build/upload checks.
+            if (!checkOnly) {
+              await github.rest.actions.createWorkflowDispatch({
+                ...repo, workflow_id: 'build_trio.yml', ref: branch
+              });
+            }
+            await report(`${checkOnly ? 'Check only: would start' : 'Started'} this week's build on ${branch}; no successful TestFlight upload since ${weekStart} (Pacific).`);
