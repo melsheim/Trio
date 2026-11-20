@@ -189,7 +189,8 @@ jobs:
   build:
     name: Build
     needs: [check_certs, check_status]
-    runs-on: macos-26
+    # Use the standard Intel pool to avoid the constrained macOS arm64 queue.
+    runs-on: macos-26-intel
     permissions:
       contents: write
     if:
